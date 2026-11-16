@@ -1,0 +1,24 @@
+{
+  "name": "everafter",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm run dev -w @everafter/backend\" \"npm run dev -w @everafter/frontend\"",
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test -w @everafter/backend",
+    "seed": "npm run seed -w @everafter/backend",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db": "node scripts/mongo.mjs",
+    "setup": "node scripts/setup.mjs",
+    "test:e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "concurrently": "^9.2.0",
+    "prettier": "^3.10.1",
+    "typescript": "^5.9.0"
+  }
+}
