@@ -6,6 +6,7 @@ import { getModelToken } from "@nestjs/mongoose";
 import cookieParser from "cookie-parser";
 import request from "supertest";
 import { Model } from "mongoose";
+import { google } from "googleapis";
 import { AppModule } from "../src/app.module";
 import { CalendarService } from "../src/google-calendar/calendar.service";
 const origin = "http://localhost:3000";
@@ -349,6 +350,99 @@ describe("Wedding API with real MongoDB", () => {
     expect(response.headers.location).toBe(origin + "/settings?calendar=error");
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+
+  it("propagates create/update/leave/delete through persistent jobs for both connected teams", async () => {
+    const users = app.get<Model<any>>(getModelToken("User"));
+    const participants = app.get<Model<any>>(getModelToken("Participant"));
+    const connected = await users.find({
+      email: { $in: ["groom@test.com", "bride@test.com"] },
+    });
+    for (const user of connected)
+      await users.updateOne(
+        { _id: user._id },
+        {
+          googleCalendarConnected: true,
+          googleAccountId: String(user._id),
+          googleRefreshTokenEncrypted: calendar.encrypt("test-provider-token"),
+        },
+      );
+    const entries = new Map<string, any>();
+    const provider = {
+      events: {
+        update: jest.fn(async ({ eventId, requestBody }: any) => {
+          if (!entries.has(eventId)) throw { code: 404 };
+          entries.set(eventId, requestBody);
+          return {};
+        }),
+        insert: jest.fn(async ({ requestBody }: any) => {
+          if (entries.has(requestBody.id)) throw { code: 409 };
+          entries.set(requestBody.id, requestBody);
+          return {};
+        }),
+        delete: jest.fn(async ({ eventId }: any) => {
+          entries.delete(eventId);
+          return {};
+        }),
+      },
+    };
+    const oauth = jest
+      .spyOn(calendar, "oauth")
+      .mockReturnValue({ setCredentials: jest.fn() } as any);
+    const googleApi = jest
+      .spyOn(google, "calendar")
+      .mockReturnValue(provider as any);
+    const drain = async () => {
+      for (let i = 0; i < 5; i++) await calendar.work();
+    };
+    try {
+      const created = await call("post", "/events", groom)
+        .send(dto)
+        .expect(201);
+      const id = created.body._id;
+      await call("post", `/events/${id}/join`, bride).expect(201);
+      await drain();
+      let rows = await participants.find({ eventId: id });
+      expect(rows).toHaveLength(2);
+      expect(rows.every((p) => p.syncStatus === "SYNCED")).toBe(true);
+      expect(new Set(rows.map((p) => p.googleCalendarEventId)).size).toBe(2);
+      await call("post", `/events/${id}/join`, bride).expect(201);
+      await drain();
+      expect(
+        [...entries.values()].filter(
+          (e) => e.extendedProperties.private.everafterEventId === id,
+        ),
+      ).toHaveLength(2);
+      await call("patch", `/events/${id}`, groom)
+        .send({ title: "Calendar update" })
+        .expect(200);
+      await drain();
+      for (const p of rows)
+        expect(entries.get(p.googleCalendarEventId).summary).toBe(
+          "Calendar update",
+        );
+      await call("delete", `/events/${id}/leave`, bride).expect(200);
+      await drain();
+      expect(
+        [...entries.values()].filter(
+          (e) => e.extendedProperties.private.everafterEventId === id,
+        ),
+      ).toHaveLength(1);
+      await call("delete", `/events/${id}`, groom).expect(200);
+      await drain();
+      for (const p of rows)
+        expect(entries.has(p.googleCalendarEventId)).toBe(false);
+    } finally {
+      oauth.mockRestore();
+      googleApi.mockRestore();
+      await users.updateMany(
+        { _id: { $in: connected.map((u) => u._id) } },
+        {
+          googleCalendarConnected: false,
+          $unset: { googleRefreshTokenEncrypted: 1 },
+        },
+      );
+    }
   });
   it("revokes all existing access and refresh sessions on password change", async () => {
     await call("patch", "/users/me/password", groom)

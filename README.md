@@ -128,3 +128,7 @@ Compose starts MongoDB with a persistent volume, the NestJS API and Next.js fron
 Host frontend and backend on the same site (e.g. `app.example.com` and `api.example.com`) to use SameSite=Lax cookies. Unrelated hosting domains require a deliberate cookie/CSRF configuration change. Restrict the API's origin to the exact frontend URL. Keep at least one API instance running for background jobs; worker leases support multiple instances. Persist secrets and database backups. Build-time frontend API origins must point to the browser-accessible API, not an internal Docker hostname. NestJS and MongoDB require a Node/container hosting service; they cannot be published as a static Sites/Worker deployment.
 
 Dashboard counts use server-side aggregation over all visible records. Calendar loads up to 100 event starts per request; larger periods are fetched in pages.
+
+## Requirements audit
+
+See [docs/REQUIREMENTS-AUDIT.md](docs/REQUIREMENTS-AUDIT.md) for the tested requirements, reproduced fixes, and remaining production reliability findings. Access JWTs now reference active database sessions, so logout and password changes revoke access immediately. Google authorization failure is distinguished from explicit disconnection; reconnecting restores pending synchronization.
