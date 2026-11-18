@@ -1,25 +1,18 @@
-import Link from "next/link";
 import {
-  ArrowRight,
   Heart,
   CalendarDays,
   UsersRound,
   CheckCheck,
 } from "lucide-react";
 import { Brand } from "@/components/shell";
-import { Button } from "@/components/ui/button";
+import { HomeActions } from "@/components/home-actions";
 export default function Home() {
   return (
     <main className="landing">
       <header>
         <Brand />
         <nav>
-          <Link href="/login">Sign in</Link>
-          <Button asChild>
-            <Link href="/register">
-              Start your story <ArrowRight size={15} />
-            </Link>
-          </Button>
+          <HomeActions />
         </nav>
       </header>
       <section className="landing-hero">
@@ -37,12 +30,7 @@ export default function Home() {
             little less organising. A lot more celebrating.
           </p>
           <div className="landing-actions">
-            <Button asChild>
-              <Link href="/register">
-                Plan your happily ever after <ArrowRight size={18} />
-              </Link>
-            </Button>
-            <Link href="/login">Already planning? Sign in</Link>
+            <HomeActions hero />
           </div>
           <span className="landing-caption">
             <Heart size={14} /> Thoughtfully made for your once-in-a-lifetime.

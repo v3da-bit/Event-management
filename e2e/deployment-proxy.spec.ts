@@ -46,6 +46,25 @@ test("deployment proxy forwards sessions, blocks untrusted writes and disables c
   await page.goto("/profile");
   await expect(page.getByLabel("Full name")).toHaveValue("Proxy Audit");
   expect(browserApiRequests).toContain(`${origin}/api/auth/me`);
-  await page.request.post("/api/auth/logout", { headers: { Origin: origin } });
+  const logoutRequests: string[] = [];
+  page.on("request", (req) => {
+    if (req.url().endsWith("/auth/logout")) logoutRequests.push(req.url());
+  });
+  await page.locator(".sidebar .brand").click();
+  await expect(page).toHaveURL(`${origin}/`);
+  await expect(page.getByRole("link", { name: "Go to dashboard" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Sign in/i })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Proxy Audit", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Continue planning" })).toBeVisible();
+  expect((await page.request.get("/api/auth/me")).status()).toBe(200);
+  expect(logoutRequests).toHaveLength(0);
+  await page.getByRole("link", { name: "Your account", exact: true }).click();
+  await expect(page.getByLabel("Full name")).toHaveValue("Proxy Audit");
+  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
   expect((await page.request.get("/api/auth/me")).status()).toBe(401);
+  await page.goto("/");
+  await expect(page.getByRole("link", { name: "Sign in", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start your story" })).toBeVisible();
 });
