@@ -1,3 +1,4 @@
+import { HealthController } from "./common/health.controller";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
 import { MongooseModule } from "@nestjs/mongoose";
@@ -30,6 +31,7 @@ import { UploadsModule } from "./uploads/uploads.module";
     UploadsModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
   ],
+  controllers: [HealthController],
   providers: [
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },

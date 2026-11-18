@@ -6,8 +6,7 @@ import type {
   Page,
 } from "@everafter/shared-types";
 export type { User, WeddingEvent, WishlistItem, Participant, Page };
-export const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 let refreshing: Promise<Response> | null = null;
 export async function api<T>(
   path: string,

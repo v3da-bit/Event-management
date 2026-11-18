@@ -56,5 +56,8 @@
       "**/test/**/*.spec.ts"
     ],
     "testTimeout": 120000
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

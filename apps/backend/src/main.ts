@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger, ConsoleLogger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import type { Request, Response, NextFunction } from "express";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
@@ -16,6 +17,10 @@ async function bootstrap() {
       throw new Error(`${name} must contain at least 32 characters`);
   if (config.get("JWT_ACCESS_SECRET") === config.get("JWT_REFRESH_SECRET"))
     throw new Error("JWT secrets must be distinct");
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("Cache-Control", "private, no-store");
+    next();
+  });
   app.use(helmet());
   app.use(cookieParser());
   app.enableCors({

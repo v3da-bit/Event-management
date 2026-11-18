@@ -116,6 +116,10 @@ packages/shared-types       Frontend/backend API interfaces
 
 Team permission and participation are independent concepts. User team is read from the database on every authenticated request, never from request body or JWT role claims. A unique email index and unique participant `(userId, eventId)` index enforce concurrency invariants. Password/token columns are excluded from normal queries. Authentication cookies never enter localStorage.
 
+## Vercel frontend + Render backend
+
+Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). The repository includes `apps/frontend/vercel.json`, `render.yaml`, Node 24 settings, production environment examples, an API proxy for first-party cookies, and a MongoDB readiness endpoint at `/health`. Deployment still requires your hosting accounts, Git repository and environment values.
+
 ## Docker and deployment
 
 ```sh
@@ -125,7 +129,7 @@ docker compose up --build -d
 
 Compose starts MongoDB with a persistent volume, the NestJS API and Next.js frontend. It binds the MongoDB port to loopback. Stop with `docker compose down` (data volume remains). For production, use an authenticated private MongoDB or Atlas, HTTPS reverse proxy, and a secrets manager. Set `NODE_ENV=production`, unique strong JWT secrets, `FRONTEND_URL`, `BACKEND_URL`, Google HTTPS redirect and the frontend build-time `NEXT_PUBLIC_API_URL`. Compose intentionally uses the local development cookie settings from the backend env file unless you change them. Production cookies require HTTPS.
 
-Host frontend and backend on the same site (e.g. `app.example.com` and `api.example.com`) to use SameSite=Lax cookies. Unrelated hosting domains require a deliberate cookie/CSRF configuration change. Restrict the API's origin to the exact frontend URL. Keep at least one API instance running for background jobs; worker leases support multiple instances. Persist secrets and database backups. Build-time frontend API origins must point to the browser-accessible API, not an internal Docker hostname. NestJS and MongoDB require a Node/container hosting service; they cannot be published as a static Sites/Worker deployment.
+For direct browser-to-backend requests, host frontend and backend on the same site (e.g. `app.example.com` and `api.example.com`) to use SameSite=Lax cookies. The Vercel/Render configuration above instead proxies `/api` through the frontend so default hosting domains work with the current cookies. Restrict the API's origin to the exact frontend URL. Keep at least one API instance running for background jobs; worker leases support multiple instances. Persist secrets and database backups. Build-time frontend API origins must point to the browser-accessible API, not an internal Docker hostname. NestJS and MongoDB require a Node/container hosting service; they cannot be published as a static Sites/Worker deployment.
 
 Dashboard counts use server-side aggregation over all visible records. Calendar loads up to 100 event starts per request; larger periods are fetched in pages.
 

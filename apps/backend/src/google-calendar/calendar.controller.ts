@@ -22,6 +22,15 @@ export class CalendarController {
     private config: ConfigService,
     private jwt: JwtService,
   ) {}
+  private stateCookiePath() {
+    // Match the browser-visible callback, including /api when Vercel proxies it.
+    return (
+      new URL(this.config.getOrThrow("GOOGLE_REDIRECT_URI")).pathname.replace(
+        /\/callback$/,
+        "",
+      ) || "/"
+    );
+  }
   @Get("connect") @UseGuards(JwtGuard) connect(
     @Req() req: any,
     @Res() res: Response,
@@ -37,7 +46,7 @@ export class CalendarController {
       secure: this.config.get("NODE_ENV") === "production",
       sameSite: "lax",
       maxAge: 600000,
-      path: "/google-calendar",
+      path: this.stateCookiePath(),
     });
     res.redirect(url);
   }
@@ -60,13 +69,13 @@ export class CalendarController {
         !code
       )
         throw new BadRequestException();
-      res.clearCookie("oauth_state", { path: "/google-calendar" });
+      res.clearCookie("oauth_state", { path: this.stateCookiePath() });
       await this.calendar.connect(decoded.sub, code);
       res.redirect(
         `${this.config.getOrThrow("FRONTEND_URL")}/settings?calendar=connected`,
       );
     } catch {
-      res.clearCookie("oauth_state", { path: "/google-calendar" });
+      res.clearCookie("oauth_state", { path: this.stateCookiePath() });
       res.redirect(
         `${this.config.getOrThrow("FRONTEND_URL")}/settings?calendar=error`,
       );

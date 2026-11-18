@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+# Create a Render Blueprint from the repository root.
+# Starter is a PAID, always-on instance for the calendar job worker.
+services:
+  - type: web
+    name: everafter-api
+    runtime: node
+    plan: starter
+    numInstances: 1
+    buildCommand: npm ci --include=dev && npm run build -w @everafter/backend
+    startCommand: npm run start -w @everafter/backend
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/backend/**
+        - packages/shared-types/**
+        - package.json
+        - package-lock.json
+        - .node-version
+        - render.yaml
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "24"
+      - key: MONGODB_URI
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: GOOGLE_TOKEN_ENCRYPTION_KEY
+        sync: false
+# Optional integrations: add GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET,
+# GOOGLE_REDIRECT_URI, CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY and
+# CLOUDINARY_API_SECRET in the Render environment dashboard when ready.
+# GOOGLE_REDIRECT_URI must use the VERCEL origin + /api/google-calendar/callback.
+# The encryption key must be 64 hex characters (see docs/DEPLOYMENT.md).
