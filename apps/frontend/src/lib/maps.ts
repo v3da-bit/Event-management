@@ -16,7 +16,7 @@ declare global {
 
 let mapsPromise: Promise<void> | undefined;
 export function loadGoogleMaps() {
-  if (typeof google !== "undefined" && google.maps?.importLibrary)
+  if (typeof window !== "undefined" && typeof (window as any).google?.maps?.importLibrary === "function")
     return Promise.resolve();
   if (mapsPromise) return mapsPromise;
   const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
