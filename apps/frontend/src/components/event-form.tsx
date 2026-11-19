@@ -15,15 +15,39 @@ import { useAuth } from "./providers";
 import { Field } from "./auth-form";
 import { Button } from "./ui/button";
 import { ImageUpload } from "./image-upload";
-const schema = z.object({
-  title: z.string().trim().min(1, "Give your moment a name").max(150),
-  description: z.string().trim().min(1, "Add a description").max(10000),
-  startDate: z.string().min(1, "Choose a start time"),
-  endDate: z.string().min(1, "Choose an end time"),
-  timezone: z.string().min(1),
-  location: z.string(),
-  coverImage: z.string(),
-});
+const schema = z
+  .object({
+    title: z.string().trim().min(1, "Give your moment a name").max(150),
+    description: z.string().trim().min(1, "Add a description").max(10000),
+    startDate: z.string().min(1, "Choose a start time"),
+    endDate: z.string().min(1, "Choose an end time"),
+    timezone: z.string().min(1),
+    location: z.string(),
+    coverImage: z.string(),
+  })
+  .superRefine((values, ctx) => {
+    const start = fromZonedTime(values.startDate, values.timezone).getTime();
+    const end = fromZonedTime(values.endDate, values.timezone).getTime();
+    if (values.startDate && !Number.isFinite(start))
+      ctx.addIssue({
+        code: "custom",
+        path: ["startDate"],
+        message: "Choose a valid start date and time",
+      });
+    if (values.endDate && !Number.isFinite(end))
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message: "Choose a valid end date and time",
+      });
+    if (Number.isFinite(start) && Number.isFinite(end) && end <= start)
+      ctx.addIssue({
+        code: "custom",
+        path: ["endDate"],
+        message:
+          "End date and time must be after the start. A later time on the same day is allowed.",
+      });
+  });
 type Values = z.infer<typeof schema>;
 export function EventForm({ id }: { id?: string }) {
   const router = useRouter();
@@ -40,6 +64,7 @@ export function EventForm({ id }: { id?: string }) {
   });
   const form = useForm<Values>({
     resolver: zodResolver(schema),
+    mode: "onChange",
     defaultValues: {
       title: "",
       description: "",
@@ -72,12 +97,6 @@ export function EventForm({ id }: { id?: string }) {
     try {
       const start = fromZonedTime(values.startDate, values.timezone);
       const end = fromZonedTime(values.endDate, values.timezone);
-      if (!Number.isFinite(start.getTime()) || end <= start) {
-        form.setError("endDate", {
-          message: "End time must be after start time",
-        });
-        return;
-      }
       const dto = {
         ...values,
         startDate: start.toISOString(),
@@ -162,7 +181,10 @@ export function EventForm({ id }: { id?: string }) {
                 label="Starts at"
                 error={form.formState.errors.startDate?.message}
               >
-                <input type="datetime-local" {...form.register("startDate")} />
+                <input
+                  type="datetime-local"
+                  {...form.register("startDate", { deps: ["endDate"] })}
+                />
               </Field>
               <Field
                 label="Ends at"
@@ -171,8 +193,16 @@ export function EventForm({ id }: { id?: string }) {
                 <input type="datetime-local" {...form.register("endDate")} />
               </Field>
             </div>
+            <p className="muted text-sm">
+              Start and end can be on the same date. Choose an end time later
+              than the start time, using the timezone below.
+            </p>
             <Field label="Timezone">
-              <select {...form.register("timezone")}>
+              <select
+                {...form.register("timezone", {
+                  deps: ["startDate", "endDate"],
+                })}
+              >
                 {Intl.supportedValuesOf("timeZone")
                   .concat("Asia/Kolkata")
                   .filter((v, i, a) => a.indexOf(v) === i)

@@ -30,7 +30,13 @@ export class EventsService {
     return event;
   }
   dates(data: any) {
-    if (new Date(data.startDate) >= new Date(data.endDate))
+    const start = new Date(data.startDate).getTime();
+    const end = new Date(data.endDate).getTime();
+    if (!Number.isFinite(start) || !Number.isFinite(end))
+      throw new BadRequestException(
+        "Choose valid start and end dates and times",
+      );
+    if (end <= start)
       throw new BadRequestException("End time must be after start time");
     try {
       new Intl.DateTimeFormat("en", {

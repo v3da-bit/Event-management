@@ -156,6 +156,37 @@ describe("Wedding API with real MongoDB", () => {
       .expect(400);
     await call("get", "/events/not-an-id", groom).expect(400);
   });
+  it("compares full timestamps for same-day creation and partial time edits", async () => {
+    const startDate = "2099-02-15T10:00:00+05:30";
+    for (const endDate of [startDate, "2099-02-15T09:59:00+05:30"])
+      await call("post", "/events", groom)
+        .send({ ...dto, startDate, endDate })
+        .expect(400);
+    const created = await call("post", "/events", groom)
+      .send({ ...dto, startDate, endDate: "2099-02-15T10:01:00+05:30" })
+      .expect(201);
+    const path = `/events/${created.body._id}`;
+    expect(created.body.startDate).toBe("2099-02-15T04:30:00.000Z");
+    expect(created.body.endDate).toBe("2099-02-15T04:31:00.000Z");
+    // Equal instants must be rejected even when their written offsets differ.
+    await call("patch", path, groom)
+      .send({ endDate: "2099-02-15T04:30:00Z" })
+      .expect(400);
+    await call("patch", path, groom)
+      .send({ startDate: "2099-02-15T10:02:00+05:30" })
+      .expect(400);
+    await call("patch", path, groom)
+      .send({ endDate: "2099-02-15T11:00:00+05:30" })
+      .expect(200);
+    // Crossing midnight remains valid; compare dates as well as clock times.
+    await call("patch", path, groom)
+      .send({
+        startDate: "2099-02-15T23:30:00+05:30",
+        endDate: "2099-02-16T00:30:00+05:30",
+      })
+      .expect(200);
+    await call("delete", path, groom).expect(200);
+  });
   it("blocks cross-team edits and deletions but permits reads", async () => {
     await call("patch", `/events/${brideEvent}`, groom)
       .send({ title: "Unauthorized" })
