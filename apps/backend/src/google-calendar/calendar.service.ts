@@ -28,6 +28,7 @@ export class CalendarService implements OnModuleInit, OnModuleDestroy {
     @InjectModel("Participant") private participants: Model<any>,
     @InjectModel("SyncJob") private jobs: Model<any>,
     private config: ConfigService,
+    @InjectModel("Wishlist") private wishlist: Model<any>,
   ) {}
   onModuleInit() {
     this.timer = setInterval(
@@ -356,10 +357,28 @@ export class CalendarService implements OnModuleInit, OnModuleDestroy {
           await this.clearToken(user._id);
         return;
       }
+      const pending = await this.wishlist.find({ eventId: event._id, isCompleted: false }).sort({ createdAt: 1 }).lean();
+      const mapLink = (value: any) => {
+        const query = value.locationPin
+          ? `${value.locationPin.lat},${value.locationPin.lng}` : value.location;
+        return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
+      };
+      const reminderMinutes = event.reminderMinutes ?? 1440;
       const requestBody = {
         summary: event.title,
-        description: event.description,
-        location: event.location,
+        description: [
+          event.description,
+          mapLink(event) ? `Event map: ${mapLink(event)}` : "",
+          pending.length ? `Pending wishlist (${pending.length}):\n${pending.map(t =>
+            `• ${t.title}${t.location ? ` — ${t.location}` : ""}${mapLink(t) ? `\n  ${mapLink(t)}` : ""}`
+          ).join("\n")}` : "Wishlist: all details taken care of.",
+          `View event: ${this.config.getOrThrow("FRONTEND_URL")}/events/${event._id}`,
+        ].filter(Boolean).join("\n\n"),
+        location: event.locationPin ? `${event.location ? `${event.location} — ` : ""}${event.locationPin.lat},${event.locationPin.lng}` : event.location,
+        reminders: {
+          useDefault: false,
+          overrides: reminderMinutes > 0 ? [{ method: "popup", minutes: reminderMinutes }] : [],
+        },
         start: {
           dateTime: event.startDate.toISOString(),
           timeZone: event.timezone,

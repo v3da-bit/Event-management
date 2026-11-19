@@ -28,7 +28,9 @@ export class WishlistService {
   }
   async add(eventId: string, dto: WishlistDto, user: any) {
     await this.events.own(eventId, user);
-    return this.items.create({ ...dto, eventId, createdBy: user._id });
+    const item = await this.items.create({ ...dto, eventId, createdBy: user._id });
+    await this.events.refreshCalendar(eventId);
+    return item;
   }
   async update(eventId: string, id: string, dto: any, user: any) {
     await this.events.own(eventId, user);
@@ -39,6 +41,7 @@ export class WishlistService {
       { new: true },
     );
     if (!item) throw new NotFoundException("Wishlist item not found");
+    await this.events.refreshCalendar(eventId);
     return item;
   }
   async toggle(eventId: string, id: string, completed: boolean, user: any) {
@@ -57,6 +60,7 @@ export class WishlistService {
     await this.events.own(eventId, user);
     validId(id);
     await this.items.deleteOne({ _id: id, eventId });
+    await this.events.refreshCalendar(eventId);
     return { message: "Item deleted" };
   }
 }

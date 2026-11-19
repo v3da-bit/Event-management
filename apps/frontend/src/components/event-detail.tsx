@@ -14,6 +14,7 @@ import {
   LockKeyhole,
   Check,
   Clock,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,6 +33,17 @@ import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { Field } from "./auth-form";
 import { ImageUpload } from "./image-upload";
+import { LocationPicker, LocationLink } from "./location-picker";
+import { LocationPin } from "@everafter/shared-types";
+
+function reminderLabel(m: number): string {
+  if (m === 0) return "No reminder";
+  if (m === 15) return "15 minutes before";
+  if (m === 60) return "1 hour before";
+  if (m === 1440) return "1 day before";
+  if (m === 10080) return "1 week before";
+  return `${m} minutes before`;
+}
 export function EventDetail({ id }: { id: string }) {
   const { user } = useAuth();
   const client = useQueryClient();
@@ -49,7 +61,7 @@ export function EventDetail({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
   const [editing, setEditing] = useState<WishlistItem>();
-  const [item, setItem] = useState({ title: "", description: "", image: "" });
+  const [item, setItem] = useState({ title: "", description: "", image: "", location: "", locationPin: null as LocationPin | null });
   const [deleteItem, setDeleteItem] = useState<WishlistItem>();
   const refresh = () => {
     client.invalidateQueries({ queryKey: ["event", id] });
@@ -72,6 +84,8 @@ export function EventDetail({ id }: { id: string }) {
           title: item.title,
           description: item.description,
           image: item.image || null,
+          location: item.location || undefined,
+          locationPin: item.locationPin || null,
         }),
       ),
     onSuccess: () => {
@@ -166,7 +180,9 @@ export function EventDetail({ id }: { id: string }) {
                 </span>
                 <span>
                   <MapPin size={16} />
-                  {e.location || "Location to be announced"}
+                  {e.locationPin || e.location 
+                    ? <LocationLink location={e.location} pin={e.locationPin} />
+                    : "Location to be announced"}
                 </span>
               </div>
               <small className="muted">All times in {e.timezone}</small>
@@ -210,7 +226,7 @@ export function EventDetail({ id }: { id: string }) {
                       size="sm"
                       onClick={() => {
                         setEditing(undefined);
-                        setItem({ title: "", description: "", image: "" });
+                        setItem({ title: "", description: "", image: "", location: "", locationPin: null });
                         setItemOpen(true);
                       }}
                     >
@@ -261,6 +277,9 @@ export function EventDetail({ id }: { id: string }) {
                             <div>
                               <strong>{t.title}</strong>
                               {t.description && <p>{t.description}</p>}
+                              {(t.location || t.locationPin) && (
+                                <LocationLink location={t.location} pin={t.locationPin} />
+                              )}
                               {t.completedAt && (
                                 <small>
                                   Completed {date(t.completedAt, e.timezone)}
@@ -277,6 +296,8 @@ export function EventDetail({ id }: { id: string }) {
                                       title: t.title,
                                       description: t.description || "",
                                       image: t.image || "",
+                                      location: t.location || "",
+                                      locationPin: t.locationPin || null,
                                     });
                                     setItemOpen(true);
                                   }}
@@ -348,6 +369,13 @@ export function EventDetail({ id }: { id: string }) {
                   </Link>
                 </section>
               )}
+              {e.reminderMinutes !== undefined && e.reminderMinutes !== 0 && (
+                <section className="panel reminder-info-panel">
+                  <Bell size={18} />
+                  <h3>Reminder set</h3>
+                  <p>{reminderLabel(e.reminderMinutes)}</p>
+                </section>
+              )}
             </aside>
           </div>
         </>
@@ -409,6 +437,11 @@ export function EventDetail({ id }: { id: string }) {
               onChange={(image) => setItem({ ...item, image })}
             />
           </Field>
+          <LocationPicker
+            location={item.location}
+            pin={item.locationPin}
+            onChange={(loc, pin) => setItem({ ...item, location: loc, locationPin: pin })}
+          />
           <Button
             type="submit"
             disabled={saveItem.isPending || !item.title.trim()}

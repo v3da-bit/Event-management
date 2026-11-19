@@ -4,6 +4,13 @@ const ref = (name: string) => ({
   ref: name,
   required: true,
 });
+const LocationPinSchema = new Schema(
+  {
+    lat: { type: Number, required: true, min: -90, max: 90 },
+    lng: { type: Number, required: true, min: -180, max: 180 },
+  },
+  { _id: false },
+);
 export const UserSchema = new Schema(
   {
     fullName: { type: String, required: true },
@@ -37,6 +44,8 @@ export const EventSchema = new Schema(
     endDate: { type: Date, required: true },
     timezone: { type: String, default: "Asia/Kolkata" },
     location: String,
+    locationPin: { type: LocationPinSchema, default: null },
+    reminderMinutes: { type: Number, default: 1440, enum: [0, 15, 60, 1440, 10080] },
     coverImage: String,
     createdBy: ref("User"),
     deletedAt: Date,
@@ -50,6 +59,8 @@ export const WishlistSchema = new Schema(
     title: { type: String, required: true },
     description: { type: String, default: "" },
     image: String,
+    location: String,
+    locationPin: { type: LocationPinSchema, default: null },
     isCompleted: { type: Boolean, default: false },
     completedBy: { type: Schema.Types.ObjectId, ref: "User" },
     completedAt: Date,

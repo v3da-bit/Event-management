@@ -17,6 +17,7 @@ import { useAuth } from "./providers";
 import { Shell, PageHeading, Empty, Loading } from "./shell";
 import { EventCard } from "./event-card";
 import { Button } from "./ui/button";
+import { ReminderWidget } from "./reminder-widget";
 export function EventList({
   mode = "all",
   dashboard = false,
@@ -319,6 +320,7 @@ export function EventList({
         </section>
         {dashboard && (
           <aside className="dashboard-aside">
+            <ReminderWidget />
             <div className="timeline panel">
               <div className="section-heading">
                 <h3>Coming up</h3>

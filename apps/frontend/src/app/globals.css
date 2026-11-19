@@ -2526,3 +2526,17 @@ legend {
 .muted {
   color: #7a8470;
 }
+
+/* Reminder widget */
+.reminder-widget h3 { display: flex; align-items: center; gap: 6px; }
+.reminder-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.reminder-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: inherit; transition: background 0.15s; }
+.reminder-item:hover { background: var(--surface-raised); }
+.reminder-header { display: flex; flex-direction: column; gap: 2px; }
+.reminder-time { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--muted); }
+.reminder-tasks ul { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 3px; }
+.reminder-tasks li { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; }
+.task-location { display: flex; align-items: center; gap: 3px; color: var(--muted); font-size: 0.78rem; }
+/* Reminder info panel in event detail */
+.reminder-info-panel { display: flex; flex-direction: column; gap: 4px; }
+.reminder-info-panel h3 { display: flex; align-items: center; gap: 7px; font-size: 1rem; }

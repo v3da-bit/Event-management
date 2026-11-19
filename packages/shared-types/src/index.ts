@@ -1,5 +1,9 @@
 export type Team = "GROOM" | "BRIDE";
 export type SyncStatus = "PENDING" | "SYNCED" | "FAILED";
+export interface LocationPin {
+  lat: number;
+  lng: number;
+}
 export interface User {
   _id: string;
   fullName: string;
@@ -14,6 +18,8 @@ export interface WishlistItem {
   title: string;
   description: string;
   image?: string;
+  location?: string;
+  locationPin?: LocationPin | null;
   isCompleted: boolean;
   completedBy?: string;
   completedAt?: string;
@@ -33,6 +39,8 @@ export interface WeddingEvent {
   endDate: string;
   timezone: string;
   location?: string;
+  locationPin?: LocationPin | null;
+  reminderMinutes?: number;
   coverImage?: string;
   createdBy: string;
   wishlist: WishlistItem[];
@@ -45,4 +53,12 @@ export interface Page<T> {
   total: number;
   page: number;
   limit: number;
+}
+export interface EventReminder {
+  _id: string;
+  title: string;
+  startDate: string;
+  timezone: string;
+  reminderMinutes: number;
+  pendingItems: WishlistItem[];
 }

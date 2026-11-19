@@ -32,6 +32,9 @@ export class EventsController {
   @Get("summary") summary(@Req() req: any) {
     return this.events.summary(req.user);
   }
+  @Get("reminders") reminders(@Req() req: any) {
+    return this.events.reminders(req.user);
+  }
   @Get(":id") detail(@Param("id") id: string, @Req() req: any) {
     return this.events.detail(id, req.user);
   }

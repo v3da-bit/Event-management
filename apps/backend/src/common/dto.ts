@@ -13,6 +13,10 @@ import {
   IsInt,
   Min,
   Max,
+  IsNumber,
+  ValidateNested,
+  IsObject,
+  IsIn,
 } from "class-validator";
 import { ApiProperty, PartialType } from "@nestjs/swagger";
 import { Type } from "class-transformer";
@@ -65,6 +69,10 @@ export class PasswordDto {
   @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/)
   newPassword: string;
 }
+export class LocationPinDto {
+  @IsNumber() @Min(-90) @Max(90) lat: number;
+  @IsNumber() @Min(-180) @Max(180) lng: number;
+}
 export class EventDto {
   @ApiProperty({ type: String })
   @IsString()
@@ -97,6 +105,15 @@ export class EventDto {
   @MaxLength(300)
   location?: string;
   @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => LocationPinDto)
+  locationPin?: LocationPinDto | null;
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsInt()
+  @IsIn([0, 15, 60, 1440, 10080])
+  reminderMinutes?: number;
+  @IsOptional()
   @ApiProperty({ type: String, format: "uri" })
   @IsUrl({ protocols: ["https"], require_protocol: true })
   coverImage?: string | null;
@@ -116,6 +133,15 @@ export class WishlistDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsString()
+  @MaxLength(300)
+  location?: string;
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => LocationPinDto)
+  locationPin?: LocationPinDto | null;
   @IsOptional()
   @ApiProperty({ type: String, format: "uri" })
   @IsUrl({ protocols: ["https"], require_protocol: true })

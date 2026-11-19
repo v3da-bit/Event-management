@@ -178,6 +178,44 @@ export class EventsService {
       upcoming,
     };
   }
+  async reminders(user: any) {
+    const now = new Date();
+    const joined = await this.participants
+      .find({ userId: user._id, active: true }).distinct("eventId");
+    const filter = {
+      deletedAt: null,
+      reminderMinutes: { $ne: 0 },
+      startDate: { $gt: now, $lte: new Date(now.getTime() + 10080 * 60000) },
+      $or: [{ team: user.team }, { _id: { $in: joined } }],
+      $expr: {
+        $lte: [
+          { $subtract: ["$startDate", now] },
+          { $multiply: [{ $ifNull: ["$reminderMinutes", 1440] }, 60000] },
+        ],
+      },
+    };
+    const [events, total] = await Promise.all([
+      this.events.find(filter).sort({ startDate: 1 }).limit(100).lean(),
+      this.events.countDocuments(filter),
+    ]);
+    const tasks = await this.wishlist.find({
+      eventId: { $in: events.map(e => e._id) }, isCompleted: false,
+    }).sort({ createdAt: 1 }).lean();
+    return {
+      total,
+      items: events.map(e => ({
+        _id: e._id, title: e.title, startDate: e.startDate, timezone: e.timezone,
+        reminderMinutes: e.reminderMinutes ?? 1440,
+        pendingItems: tasks.filter(t => String(t.eventId) === String(e._id)),
+      })),
+    };
+  }
+  async refreshCalendar(eventId: string) {
+    // Touch the event so reconciliation also detects interrupted wishlist updates.
+    await this.events.updateOne({ _id: eventId }, { $set: { updatedAt: new Date() } });
+    await this.participants.updateMany({ eventId, active: true }, { syncStatus: "PENDING" });
+    await this.calendar.enqueueEvent(eventId);
+  }
   async enrich(rows: any[], user: any) {
     const ids = rows.map((e) => e._id);
     const [tasks, participants] = await Promise.all([

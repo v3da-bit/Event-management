@@ -15,6 +15,8 @@ import { useAuth } from "./providers";
 import { Field } from "./auth-form";
 import { Button } from "./ui/button";
 import { ImageUpload } from "./image-upload";
+import { LocationPicker } from "./location-picker";
+import { LocationPin } from "@everafter/shared-types";
 const schema = z
   .object({
     title: z.string().trim().min(1, "Give your moment a name").max(150),
@@ -53,6 +55,8 @@ export function EventForm({ id }: { id?: string }) {
   const router = useRouter();
   const client = useQueryClient();
   const { user } = useAuth();
+  const [locationPin, setLocationPin] = useState<LocationPin | null>(null);
+  const [reminderMinutes, setReminderMinutes] = useState<number>(1440);
   const [items, setItems] = useState<string[]>([]);
   const [item, setItem] = useState("");
   const [savedId, setSavedId] = useState<string>();
@@ -91,6 +95,8 @@ export function EventForm({ id }: { id?: string }) {
         location: e.location || "",
         coverImage: e.coverImage || "",
       });
+      setLocationPin(e.locationPin || null);
+      setReminderMinutes(e.reminderMinutes ?? 1440);
     }
   }, [event.data, form]);
   async function save(values: Values) {
@@ -102,6 +108,8 @@ export function EventForm({ id }: { id?: string }) {
         startDate: start.toISOString(),
         endDate: end.toISOString(),
         coverImage: values.coverImage || null,
+        locationPin: locationPin || null,
+        reminderMinutes,
       };
       const e = await api<WeddingEvent>(
         id ? `/events/${id}` : "/events",
@@ -213,10 +221,26 @@ export function EventForm({ id }: { id?: string }) {
               </select>
             </Field>
             <Field label="Location (optional)">
-              <input
-                placeholder="A place to make memories"
-                {...form.register("location")}
+              <LocationPicker
+                location={form.watch("location")}
+                pin={locationPin}
+                onChange={(loc, pin) => {
+                  form.setValue("location", loc);
+                  setLocationPin(pin);
+                }}
               />
+            </Field>
+            <Field label="Reminder">
+              <select
+                value={reminderMinutes}
+                onChange={(e) => setReminderMinutes(Number(e.target.value))}
+              >
+                <option value={0}>No reminder</option>
+                <option value={15}>15 minutes before</option>
+                <option value={60}>1 hour before</option>
+                <option value={1440}>1 day before</option>
+                <option value={10080}>1 week before</option>
+              </select>
             </Field>
             <Field label="Cover image (optional)">
               <ImageUpload
