@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { createContext, useContext, useState } from "react";
 import { Toaster } from "sonner";
+import { Heart } from "lucide-react";
 import { api, type User } from "@/lib/api";
 const AuthContext = createContext<{ user?: User; loading: boolean }>({
   loading: true,
@@ -18,7 +19,18 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   });
   return (
     <AuthContext.Provider value={{ user: data, loading: isPending }}>
-      {children}
+      {isPending ? (
+        <div
+          className="loading-page"
+          role="status"
+          aria-label="Loading your session"
+        >
+          <Heart className="pulse" size={36} aria-hidden="true" />
+          <p>Gathering your moments…</p>
+        </div>
+      ) : (
+        children
+      )}
     </AuthContext.Provider>
   );
 }

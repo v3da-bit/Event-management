@@ -6,9 +6,7 @@ import { useAuth } from "./providers";
 import { Button } from "./ui/button";
 
 export function HomeActions({ hero = false }: { hero?: boolean }) {
-  const { user, loading } = useAuth();
-
-  if (loading) return <span role="status">Loading your session…</span>;
+  const { user } = useAuth();
 
   if (user) {
     return (
