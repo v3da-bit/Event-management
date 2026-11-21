@@ -20,6 +20,7 @@ import {
 import { useAuth } from "./providers";
 import { api, json } from "@/lib/api";
 import { Button } from "./ui/button";
+import { ReminderNotifications } from "./reminder-widget";
 const navigation = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/events", label: "All events", icon: Sparkles },
@@ -58,6 +59,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
     );
   return (
     <div className="app-shell">
+      <ReminderNotifications />
       <button
         className="mobile-toggle"
         aria-label="Toggle navigation"

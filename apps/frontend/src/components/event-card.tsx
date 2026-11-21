@@ -16,6 +16,7 @@ import { Button } from "./ui/button";
 import { Dialog } from "./ui/dialog";
 import { useAuth } from "./providers";
 import { useState } from "react";
+import { LocationLink } from "./location-picker";
 export function TeamBadge({ team }: { team: string }) {
   return (
     <span className={`team-badge ${team.toLowerCase()}`}>
@@ -42,6 +43,7 @@ export function JoinButton({
       client.invalidateQueries({ queryKey: ["events"] });
       client.invalidateQueries({ queryKey: ["event", event._id] });
       client.invalidateQueries({ queryKey: ["participants", event._id] });
+      client.invalidateQueries({ queryKey: ["reminders"] });
       toast.success(
         event.joined ? "You left the event" : "You’re on the guest list!",
       );
@@ -120,8 +122,13 @@ export function EventCard({ event }: { event: WeddingEvent }) {
           })}
         </div>
         <div className="event-meta">
-          <MapPin size={14} />
-          {event.location || "Location to be announced"}
+          {event.location || event.locationPin ? (
+            <LocationLink location={event.location} pin={event.locationPin} />
+          ) : (
+            <>
+              <MapPin size={14} /> Location to be announced
+            </>
+          )}
         </div>
         <div className="card-progress">
           <div>
@@ -161,6 +168,7 @@ function CardManagement({ event }: { event: WeddingEvent }) {
     mutationFn: () => api(`/events/${event._id}`, json("DELETE")),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["events"] });
+      client.invalidateQueries({ queryKey: ["reminders"] });
       setOpen(false);
       toast.success("Event deleted");
     },

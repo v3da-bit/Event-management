@@ -61,11 +61,18 @@ export function EventDetail({ id }: { id: string }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [itemOpen, setItemOpen] = useState(false);
   const [editing, setEditing] = useState<WishlistItem>();
-  const [item, setItem] = useState({ title: "", description: "", image: "", location: "", locationPin: null as LocationPin | null });
+  const [item, setItem] = useState({
+    title: "",
+    description: "",
+    image: "",
+    location: "",
+    locationPin: null as LocationPin | null,
+  });
   const [deleteItem, setDeleteItem] = useState<WishlistItem>();
   const refresh = () => {
     client.invalidateQueries({ queryKey: ["event", id] });
     client.invalidateQueries({ queryKey: ["events"] });
+    client.invalidateQueries({ queryKey: ["reminders"] });
   };
   const remove = useMutation({
     mutationFn: () => api(`/events/${id}`, json("DELETE")),
@@ -84,7 +91,7 @@ export function EventDetail({ id }: { id: string }) {
           title: item.title,
           description: item.description,
           image: item.image || null,
-          location: item.location || undefined,
+          location: item.location.trim(),
           locationPin: item.locationPin || null,
         }),
       ),
@@ -179,10 +186,13 @@ export function EventDetail({ id }: { id: string }) {
                   })}
                 </span>
                 <span>
-                  <MapPin size={16} />
-                  {e.locationPin || e.location 
-                    ? <LocationLink location={e.location} pin={e.locationPin} />
-                    : "Location to be announced"}
+                  {e.locationPin || e.location ? (
+                    <LocationLink location={e.location} pin={e.locationPin} />
+                  ) : (
+                    <>
+                      <MapPin size={16} /> Location to be announced
+                    </>
+                  )}
                 </span>
               </div>
               <small className="muted">All times in {e.timezone}</small>
@@ -226,7 +236,13 @@ export function EventDetail({ id }: { id: string }) {
                       size="sm"
                       onClick={() => {
                         setEditing(undefined);
-                        setItem({ title: "", description: "", image: "", location: "", locationPin: null });
+                        setItem({
+                          title: "",
+                          description: "",
+                          image: "",
+                          location: "",
+                          locationPin: null,
+                        });
                         setItemOpen(true);
                       }}
                     >
@@ -278,7 +294,10 @@ export function EventDetail({ id }: { id: string }) {
                               <strong>{t.title}</strong>
                               {t.description && <p>{t.description}</p>}
                               {(t.location || t.locationPin) && (
-                                <LocationLink location={t.location} pin={t.locationPin} />
+                                <LocationLink
+                                  location={t.location}
+                                  pin={t.locationPin}
+                                />
                               )}
                               {t.completedAt && (
                                 <small>
@@ -440,7 +459,9 @@ export function EventDetail({ id }: { id: string }) {
           <LocationPicker
             location={item.location}
             pin={item.locationPin}
-            onChange={(loc, pin) => setItem({ ...item, location: loc, locationPin: pin })}
+            onChange={(location, locationPin) =>
+              setItem((current) => ({ ...current, location, locationPin }))
+            }
           />
           <Button
             type="submit"

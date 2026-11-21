@@ -11,6 +11,7 @@ describe("Google Calendar synchronization", () => {
   let participants: any;
   let events: any;
   let jobs: any;
+  let pendingItems: any[];
   let provider: any;
   let p: any;
   let user: any;
@@ -47,6 +48,7 @@ describe("Google Calendar synchronization", () => {
     };
     events = { findById: jest.fn(async () => event) };
     jobs = {};
+    pendingItems = [];
     provider = {
       events: {
         update: jest.fn(async () => ({})),
@@ -60,12 +62,36 @@ describe("Google Calendar synchronization", () => {
       events,
       participants,
       jobs,
-      new ConfigService(),
+      new ConfigService({ FRONTEND_URL: "https://wedding.example" }),
+      {
+        find: () => ({ sort: () => ({ lean: async () => pendingItems }) }),
+      } as any,
     );
     jest
       .spyOn(service, "oauth")
       .mockReturnValue({ setCredentials: jest.fn() } as any);
     jest.spyOn(service, "decrypt").mockReturnValue("refresh-token");
+  });
+  it("syncs popup timing, pending tasks and exact location, and clears a disabled reminder", async () => {
+    event.reminderMinutes = 60;
+    event.locationPin = { lat: 23.03, lng: 72.58 };
+    pendingItems.push({ title: "Pick up flowers", location: "Florist" });
+    await service.syncParticipant("participant-1");
+    const { requestBody } = provider.events.update.mock.calls[0][0];
+    expect(requestBody.reminders).toEqual({
+      useDefault: false,
+      overrides: [{ method: "popup", minutes: 60 }],
+    });
+    expect(requestBody.location).toBe("23.03,72.58");
+    expect(requestBody.description).toContain("Pick up flowers");
+    expect(requestBody.description).toContain("query=23.03%2C72.58");
+
+    event.reminderMinutes = 0;
+    pendingItems.length = 0;
+    await service.syncParticipant("participant-1");
+    const updated = provider.events.update.mock.calls[1][0].requestBody;
+    expect(updated.reminders).toEqual({ useDefault: false, overrides: [] });
+    expect(updated.description).not.toContain("Pick up flowers");
   });
   it("creates real-provider event requests with deterministic IDs and records mappings", async () => {
     provider.events.update.mockRejectedValueOnce({ code: 404 });

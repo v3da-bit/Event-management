@@ -24,7 +24,7 @@ test("event form accepts later same-day times and validates create and edit", as
     .getByLabel("Tell the story")
     .fill("Checking date and time validation.");
   await page
-    .getByRole("combobox")
+    .getByRole("combobox", { name: "Timezone", exact: true })
     .selectOption("Asia/Kolkata");
   await page.getByLabel("Starts at").fill("2099-02-15T10:00");
   const error = page

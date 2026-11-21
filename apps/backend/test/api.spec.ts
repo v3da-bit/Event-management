@@ -452,6 +452,26 @@ describe("Wedding API with real MongoDB", () => {
         expect(entries.get(p.googleCalendarEventId).summary).toBe(
           "Calendar update",
         );
+      const task = await call("post", `/events/${id}/wishlist`, groom)
+        .send({ title: "Collect wedding flowers", location: "Florist" })
+        .expect(201);
+      await drain();
+      for (const p of rows)
+        expect(entries.get(p.googleCalendarEventId).description).toContain(
+          "Collect wedding flowers",
+        );
+      await call(
+        "patch",
+        `/events/${id}/wishlist/${task.body._id}/toggle`,
+        groom,
+      )
+        .send({ isCompleted: true })
+        .expect(200);
+      await drain();
+      for (const p of rows)
+        expect(entries.get(p.googleCalendarEventId).description).not.toContain(
+          "Collect wedding flowers",
+        );
       await call("delete", `/events/${id}/leave`, bride).expect(200);
       await drain();
       expect(
@@ -474,6 +494,55 @@ describe("Wedding API with real MongoDB", () => {
         },
       );
     }
+  });
+  it("returns due reminders for teammates and joined guests with only pending items", async () => {
+    const now = Date.now();
+    const payload = {
+      ...dto,
+      startDate: new Date(now + 45 * 60000).toISOString(),
+      endDate: new Date(now + 90 * 60000).toISOString(),
+      reminderMinutes: 60,
+      locationPin: { lat: 23.03, lng: 72.58 },
+    };
+    await call("post", "/events", groom)
+      .send({ ...payload, locationPin: { lat: 91, lng: 72.58 } })
+      .expect(400);
+    await call("post", "/events", groom)
+      .send({ ...payload, reminderMinutes: -15 })
+      .expect(400);
+    const created = await call("post", "/events", groom)
+      .send(payload)
+      .expect(201);
+    const id = created.body._id;
+    expect(created.body.locationPin).toEqual(payload.locationPin);
+    const path = `/events/${id}`;
+    const task = await call("post", `${path}/wishlist`, groom)
+      .send({
+        title: "Pick up flowers",
+        location: "Florist",
+        locationPin: payload.locationPin,
+      })
+      .expect(201);
+    expect(task.body.locationPin).toEqual(payload.locationPin);
+    const getReminder = async (auth: string[]) => {
+      const response = await call("get", "/events/reminders", auth).expect(200);
+      return response.body.items.find((item: any) => item._id === id);
+    };
+    expect((await getReminder(groom)).pendingItems).toEqual([
+      expect.objectContaining({ title: "Pick up flowers" }),
+    ]);
+    expect(await getReminder(bride)).toBeUndefined();
+    await call("post", `${path}/join`, bride).expect(201);
+    expect(await getReminder(bride)).toBeDefined();
+    await call("patch", `${path}/wishlist/${task.body._id}/toggle`, groom)
+      .send({ isCompleted: true })
+      .expect(200);
+    expect((await getReminder(groom)).pendingItems).toEqual([]);
+    await call("patch", path, groom).send({ reminderMinutes: 15 }).expect(200);
+    expect(await getReminder(groom)).toBeUndefined();
+    await call("patch", path, groom).send({ reminderMinutes: 0 }).expect(200);
+    expect(await getReminder(bride)).toBeUndefined();
+    await call("delete", path, groom).expect(200);
   });
   it("revokes all existing access and refresh sessions on password change", async () => {
     await call("patch", "/users/me/password", groom)

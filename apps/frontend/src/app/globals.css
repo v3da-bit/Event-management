@@ -2530,8 +2530,8 @@ legend {
 /* Reminder widget */
 .reminder-widget h3 { display: flex; align-items: center; gap: 6px; }
 .reminder-list { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
-.reminder-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; text-decoration: none; color: inherit; transition: background 0.15s; }
-.reminder-item:hover { background: var(--surface-raised); }
+.reminder-item { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: inherit; transition: background 0.15s; overflow-wrap: anywhere; }
+.reminder-item:hover { background: var(--sage-light); }
 .reminder-header { display: flex; flex-direction: column; gap: 2px; }
 .reminder-time { display: flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--muted); }
 .reminder-tasks ul { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 3px; }
@@ -2540,3 +2540,67 @@ legend {
 /* Reminder info panel in event detail */
 .reminder-info-panel { display: flex; flex-direction: column; gap: 4px; }
 .reminder-info-panel h3 { display: flex; align-items: center; gap: 7px; font-size: 1rem; }
+
+.location-picker {
+  min-width: 0;
+  margin-block: 16px;
+  display: grid;
+  gap: 10px;
+}
+.location-picker legend {
+  margin-bottom: 8px;
+  font-size: 0.875rem;
+  color: var(--sage);
+}
+.location-picker > input {
+  width: 100%;
+}
+.location-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.map-picker-content {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+.location-map {
+  width: 100%;
+  height: 280px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--sage-light);
+}
+.location-map[hidden] {
+  display: none;
+}
+.map-search-results {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.map-search-results button {
+  width: 100%;
+  padding: 8px 12px;
+  text-align: left;
+}
+.map-search-results button:hover {
+  background: var(--sage-light);
+}
+.coordinate-details summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+.coordinate-details .form-row {
+  margin-top: 8px;
+}
+.location-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+.location-link svg {
+  flex: none;
+}

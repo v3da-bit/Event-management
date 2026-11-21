@@ -116,6 +116,7 @@ export function EventForm({ id }: { id?: string }) {
         json(id ? "PATCH" : "POST", dto),
       );
       setSavedId(e._id);
+      client.invalidateQueries({ queryKey: ["reminders"] });
       const pending = [...items];
       setRemaining(pending);
       for (const title of items) {
@@ -125,6 +126,7 @@ export function EventForm({ id }: { id?: string }) {
       }
       client.invalidateQueries({ queryKey: ["events"] });
       client.invalidateQueries({ queryKey: ["event", e._id] });
+      client.invalidateQueries({ queryKey: ["reminders"] });
       toast.success(id ? "Event updated" : "A new moment to look forward to");
       router.push(`/events/${e._id}`);
     } catch (e) {
@@ -220,16 +222,14 @@ export function EventForm({ id }: { id?: string }) {
                   ))}
               </select>
             </Field>
-            <Field label="Location (optional)">
-              <LocationPicker
-                location={form.watch("location")}
-                pin={locationPin}
-                onChange={(loc, pin) => {
-                  form.setValue("location", loc);
-                  setLocationPin(pin);
-                }}
-              />
-            </Field>
+            <LocationPicker
+              location={form.watch("location")}
+              pin={locationPin}
+              onChange={(location, pin) => {
+                form.setValue("location", location);
+                setLocationPin(pin);
+              }}
+            />
             <Field label="Reminder">
               <select
                 value={reminderMinutes}
