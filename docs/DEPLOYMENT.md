@@ -92,7 +92,7 @@ NEXT_PUBLIC_API_URL=/api
 
 Deploy or redeploy Vercel. Rewrites and public environment values are compiled during the build; changing them requires another deployment. Visit `https://YOUR-FRONTEND.vercel.app/api/health` and confirm the same healthy response. Then register and sign in through the frontend.
 
-## 6. Enable Google Calendar, Google Maps and image uploads
+## 6. Enable Google Calendar, location maps and image uploads
 
 In Render, add:
 
@@ -111,14 +111,11 @@ Do not set the callback to the Render domain when using the Vercel proxy: that d
 
 The dashboard shows due reminders for upcoming events on your team or that you have joined. While the workspace is open, it checks for new reminders once a minute and shows a notification. The default lead time is one day, and event editors can change it or turn reminders off. For connected attendees, Calendar entries use a popup at the chosen lead time and include the current pending wishlist in the event description. To update entries synced before this release, run **Settings → Sync joined events** once after deploying.
 
-To enable interactive maps on event and wishlist forms, enable billing, **Maps JavaScript API**, and **Geocoding API** in your Google Cloud project. Create a browser API key with website restrictions for the production frontend domain (and localhost if needed) and API restrictions for those two APIs. Create a JavaScript map ID for production markers. In Vercel's Production environment, set the following values and redeploy the frontend.
+Interactive event and wishlist maps use Leaflet with OpenStreetMap tiles. No Maps API key, map ID, or billing account is required. Redeploy the frontend after installing the updated dependencies. You can remove the obsolete `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` variables from Vercel and local configuration. Google Calendar OAuth settings remain required for calendar sync.
 
-```dotenv
-NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your-restricted-browser-key
-NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID=your-javascript-map-id
-```
+Click the map to save a pin, drag it to adjust, use current location, or enter coordinates. Existing saved coordinates and optional addresses remain compatible; no database migration is needed. Address search opens OpenStreetMap in a separate tab; there is no embedded geocoding API or autocomplete. Existing “Open Google Maps” links still open the saved coordinates without using a paid API.
 
-The browser key and map ID belong in Vercel. The Google Calendar OAuth credentials remain in Render. Address text, current location, manual coordinates and Google Maps links also work without the interactive map. See [Google Maps API key setup](https://developers.google.com/maps/documentation/javascript/get-api-key) and [advanced marker setup](https://developers.google.com/maps/documentation/javascript/advanced-markers/start).
+Maps load only when opened and display OpenStreetMap attribution. Browser tile caching remains enabled; there is no offline download or prefetch feature. Public tiles have best-effort availability and must follow the [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Use a dedicated tile provider if traffic outgrows the public service. If tiles fail, address text, current location, and manual coordinates remain available.
 
 Upload credentials remain on Render. Image content is sent through Vercel's external rewrite to the API; verify a real JPEG/PNG/WebP upload after hosting. The API accepts up to 5 MB; platform proxy/request limits can impose a smaller effective limit and must be checked on the deployed service.
 

@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+const apiOrigin = process.env.TEST_API_URL || "http://localhost:4000";
+const frontendOrigin = process.env.TEST_BASE_URL || "http://localhost:3000";
 test("landing page and protected route redirect", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1 })).toContainText(
@@ -39,11 +41,11 @@ test.describe("live seeded application", () => {
       page.getByRole("heading", { name: "Your celebrations" }),
     ).toBeVisible();
     const leftovers = await page.request.get(
-      "http://localhost:4000/events/my-team?search=Browser%20celebration&limit=100",
+      `${apiOrigin}/events/my-team?search=Browser%20celebration&limit=100`,
     );
     for (const event of (await leftovers.json()).items || [])
-      await page.request.delete(`http://localhost:4000/events/${event._id}`, {
-        headers: { Origin: "http://localhost:3000" },
+      await page.request.delete(`${apiOrigin}/events/${event._id}`, {
+        headers: { Origin: frontendOrigin },
       });
     await page.reload();
     await expect(page.getByText("Mehendi & memories").first()).toBeVisible();
@@ -54,9 +56,9 @@ test.describe("live seeded application", () => {
       fullPage: true,
     });
     const badImage = await page.request.post(
-      "http://localhost:4000/uploads/image",
+      `${apiOrigin}/uploads/image`,
       {
-        headers: { Origin: "http://localhost:3000" },
+        headers: { Origin: frontendOrigin },
         multipart: {
           file: {
             name: "fake.png",
@@ -68,9 +70,9 @@ test.describe("live seeded application", () => {
     );
     expect(badImage.status()).toBe(400);
     const oversized = await page.request.post(
-      "http://localhost:4000/uploads/image",
+      `${apiOrigin}/uploads/image`,
       {
-        headers: { Origin: "http://localhost:3000" },
+        headers: { Origin: frontendOrigin },
         multipart: {
           file: {
             name: "large.png",

@@ -2571,22 +2571,12 @@ legend {
   border-radius: 10px;
   overflow: hidden;
   background: var(--sage-light);
+  isolation: isolate;
+  z-index: 0;
 }
-.location-map[hidden] {
-  display: none;
-}
-.map-search-results {
-  width: 100%;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-.map-search-results button {
-  width: 100%;
-  padding: 8px 12px;
-  text-align: left;
-}
-.map-search-results button:hover {
-  background: var(--sage-light);
+.location-pin-marker {
+  background: transparent;
+  border: 0;
 }
 .coordinate-details summary {
   cursor: pointer;

@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { LocationPin } from "@everafter/shared-types";
-import { loadGoogleMaps, mapsUrl } from "@/lib/maps";
+import type { Map as LeafletMap, Marker, LatLng } from "leaflet";
+import { mapsUrl } from "@/lib/maps";
 import { Button } from "./ui/button";
 
 export function LocationLink({
@@ -40,124 +41,119 @@ export function LocationPicker({
   const [loading, setLoading] = useState(false);
   const [mapError, setMapError] = useState("");
   const [error, setError] = useState("");
-  const [searching, setSearching] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [results, setResults] = useState<google.maps.GeocoderResult[]>([]);
   const [coords, setCoords] = useState({
     lat: pin?.lat.toString() || "",
     lng: pin?.lng.toString() || "",
   });
   const host = useRef<HTMLDivElement>(null);
-  const map = useRef<google.maps.Map | null>(null);
-  const marker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const map = useRef<LeafletMap | null>(null);
+  const marker = useRef<Marker | null>(null);
   const latest = useRef({ location, pin, onChange });
   latest.current = { location, pin, onChange };
-  const searchSequence = useRef(0);
+  const updateMarker = useRef<((pin?: LocationPin | null) => void) | null>(
+    null,
+  );
 
   useEffect(() => {
     setCoords({
       lat: pin?.lat.toString() || "",
       lng: pin?.lng.toString() || "",
     });
-    if (marker.current) marker.current.position = pin || null;
+    updateMarker.current?.(pin);
     if (pin && map.current) {
-      map.current.panTo(pin);
-      if ((map.current.getZoom() || 0) < 14) map.current.setZoom(16);
+      map.current.setView(pin, Math.max(map.current.getZoom(), 16), {
+        animate: false,
+      });
     }
   }, [pin?.lat, pin?.lng]);
 
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    let click: google.maps.MapsEventListener | undefined;
-    let drag: google.maps.MapsEventListener | undefined;
-    const failed = () =>
-      setMapError(
-        "Google Maps is unavailable. You can still enter coordinates or use your current location.",
-      );
-    window.addEventListener("everafter-maps-error", failed);
+    let instance: LeafletMap | undefined;
+    let resize: ResizeObserver | undefined;
     setLoading(true);
     setMapError("");
     void (async () => {
       try {
-        await loadGoogleMaps();
-        const [{ Map }, { AdvancedMarkerElement }] = await Promise.all([
-          google.maps.importLibrary("maps") as Promise<google.maps.MapsLibrary>,
-          google.maps.importLibrary(
-            "marker",
-          ) as Promise<google.maps.MarkerLibrary>,
-        ]);
+        // Leaflet accesses window; load it only after mounting in the browser.
+        const L = await import("leaflet");
         if (cancelled || !host.current) return;
         const initial = latest.current.pin;
-        map.current = new Map(host.current, {
-          center: initial || { lat: 22.9734, lng: 78.6569 },
-          zoom: initial ? 16 : 5,
-          mapId: process.env.NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID || "DEMO_MAP_ID",
-          streetViewControl: false,
-          mapTypeControl: false,
-          fullscreenControl: false,
-          gestureHandling: "cooperative",
+        instance = L.map(host.current, { scrollWheelZoom: false }).setView(
+          initial || { lat: 22.9734, lng: 78.6569 },
+          initial ? 16 : 5,
+        );
+        map.current = instance;
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          keepBuffer: 0,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        })
+          .on("tileerror", () => {
+            if (!cancelled)
+              setMapError(
+                "Map tiles could not load. Check your connection, or use your current location or coordinates.",
+              );
+          })
+          .addTo(instance);
+        const icon = L.divIcon({
+          className: "location-pin-marker",
+          html: '<svg width="32" height="40" viewBox="0 0 32 40" aria-hidden="true"><path d="M16 38S2 23 2 16a14 14 0 1 1 28 0c0 7-14 22-14 22Z" fill="#557565" stroke="white" stroke-width="2"/><circle cx="16" cy="16" r="5" fill="white"/></svg>',
+          iconSize: [32, 40],
+          iconAnchor: [16, 38],
         });
-        marker.current = new AdvancedMarkerElement({
-          map: map.current,
-          position: initial || undefined,
-          gmpDraggable: true,
-          title: "Selected location; drag to move the pin",
-        });
-        const select = (latLng: google.maps.LatLng | null | undefined) => {
-          if (latLng)
-            latest.current.onChange(latest.current.location, {
-              lat: latLng.lat(),
-              lng: latLng.lng(),
-            });
+        const select = (point: LatLng) => {
+          const wrapped = point.wrap();
+          latest.current.onChange(latest.current.location, {
+            lat: Math.max(-90, Math.min(90, wrapped.lat)),
+            lng: wrapped.lng,
+          });
         };
-        click = map.current.addListener(
-          "click",
-          (event: google.maps.MapMouseEvent) => select(event.latLng),
+        updateMarker.current = (value) => {
+          if (!instance) return;
+          if (!value) {
+            marker.current?.remove();
+            marker.current = null;
+          } else if (marker.current) {
+            marker.current.setLatLng(value);
+          } else {
+            const selected = L.marker(value, {
+              icon,
+              draggable: true,
+              title: "Selected location; drag to move the pin",
+              alt: "Selected location",
+            }).addTo(instance);
+            selected.on("dragend", () => select(selected.getLatLng()));
+            marker.current = selected;
+          }
+        };
+        updateMarker.current(latest.current.pin);
+        instance.on("click", (event) => select(event.latlng));
+        resize = new ResizeObserver(() =>
+          instance?.invalidateSize({ pan: false }),
         );
-        drag = marker.current.addListener(
-          "dragend",
-          (event: google.maps.MapMouseEvent) => select(event.latLng),
-        );
-      } catch (err) {
-        if (!cancelled) setMapError((err as Error).message);
+        resize.observe(host.current);
+      } catch {
+        if (!cancelled)
+          setMapError(
+            "Map selection is unavailable. You can still enter coordinates or use your current location.",
+          );
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
-      click?.remove();
-      drag?.remove();
-      if (marker.current) marker.current.map = null;
+      resize?.disconnect();
+      instance?.remove();
+      updateMarker.current = null;
       marker.current = null;
       map.current = null;
-      window.removeEventListener("everafter-maps-error", failed);
     };
   }, [open]);
-
-  async function search() {
-    const request = ++searchSequence.current;
-    setSearching(true);
-    setError("");
-    setResults([]);
-    try {
-      await loadGoogleMaps();
-      const { Geocoder } = (await google.maps.importLibrary(
-        "geocoding",
-      )) as google.maps.GeocodingLibrary;
-      const response = await new Geocoder().geocode({ address: location });
-      if (request === searchSequence.current)
-        setResults(response.results.slice(0, 5));
-    } catch {
-      if (request === searchSequence.current)
-        setError(
-          "No address found, or search is unavailable. Try another address or place a pin.",
-        );
-    } finally {
-      if (request === searchSequence.current) setSearching(false);
-    }
-  }
 
   function currentLocation() {
     if (!navigator.geolocation) {
@@ -208,9 +204,6 @@ export function LocationPicker({
         maxLength={300}
         value={location}
         onChange={(e) => {
-          searchSequence.current++;
-          setSearching(false);
-          setResults([]);
           onChange(e.target.value, pin || null);
         }}
       />
@@ -245,38 +238,19 @@ export function LocationPicker({
       </div>
       {open && (
         <div className="map-picker-content">
-          {!mapError && (
-            <p className="muted text-sm">
-              Find an address, then click the map to drop a pin. Drag the pin to
-              adjust it.
-            </p>
-          )}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!location.trim() || searching || loading || !!mapError}
-            onClick={search}
-          >
-            <Search size={15} /> {searching ? "Searching…" : "Find address"}
-          </Button>
-          {results.length > 0 && (
-            <ul className="map-search-results">
-              {results.map((result, i) => (
-                <li key={result.place_id || i}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      map.current?.panTo(result.geometry.location);
-                      map.current?.setZoom(17);
-                      setResults([]);
-                    }}
-                  >
-                    {result.formatted_address}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <p className="muted text-sm">
+            Zoom to your venue and click the map to drop a pin. Drag the pin to
+            adjust it.
+          </p>
+          {location.trim() && (
+            <a
+              className="text-link"
+              href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(location.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Search size={15} /> Search on OpenStreetMap (opens a new tab)
+            </a>
           )}
           {loading && <p role="status">Loading map…</p>}
           {mapError && (
@@ -286,9 +260,8 @@ export function LocationPicker({
           )}
           <div
             ref={host}
-            hidden={!!mapError}
             className="location-map"
-            aria-label="Choose a location on Google Maps"
+            aria-label="Choose a location on OpenStreetMap"
           />
         </div>
       )}
