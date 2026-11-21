@@ -33,6 +33,7 @@ export function JoinButton({
   small?: boolean;
 }) {
   const client = useQueryClient();
+  const joinClosed = !event.joined && new Date(event.endDate) < new Date();
   const mutation = useMutation({
     mutationFn: () =>
       api(
@@ -54,10 +55,7 @@ export function JoinButton({
     <Button
       variant={event.joined ? "outline" : "default"}
       size={small ? "sm" : "default"}
-      disabled={
-        mutation.isPending ||
-        (!event.joined && new Date(event.endDate) < new Date())
-      }
+      disabled={mutation.isPending || joinClosed}
       onClick={() => mutation.mutate()}
     >
       {event.joined && <Check size={14} />}{" "}
@@ -65,7 +63,9 @@ export function JoinButton({
         ? "Saving…"
         : event.joined
           ? "Leave event"
-          : "Join event"}
+          : joinClosed
+            ? "Event ended"
+            : "Join event"}
     </Button>
   );
 }
