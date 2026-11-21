@@ -113,7 +113,7 @@ The dashboard shows due reminders for upcoming events on your team or that you h
 
 Interactive event and wishlist maps use Leaflet with OpenStreetMap tiles. No Maps API key, map ID, or billing account is required. Redeploy the frontend after installing the updated dependencies. You can remove the obsolete `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and `NEXT_PUBLIC_GOOGLE_MAPS_MAP_ID` variables from Vercel and local configuration. Google Calendar OAuth settings remain required for calendar sync.
 
-Click the map to save a pin, drag it to adjust, use current location, or enter coordinates. Existing saved coordinates and optional addresses remain compatible; no database migration is needed. Address search opens OpenStreetMap in a separate tab; there is no embedded geocoding API or autocomplete. Existing “Open Google Maps” links still open the saved coordinates without using a paid API.
+Click the map to save a pin, drag it to adjust, use current location, or enter coordinates. Existing saved coordinates and optional addresses remain compatible; no database migration is needed. Address search opens OpenStreetMap in a separate tab; there is no address autocomplete. Selecting a pin, dragging it, using current location, or entering coordinates fills the location text immediately with coordinates and then the nearest available address. Manual edits cancel pending lookups. Existing “Open Google Maps” links still open the saved coordinates without using a paid API.
 
 Maps load only when opened and display OpenStreetMap attribution. Browser tile caching remains enabled; there is no offline download or prefetch feature. Public tiles have best-effort availability and must follow the [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Use a dedicated tile provider if traffic outgrows the public service. If tiles fail, address text, current location, and manual coordinates remain available.
 
@@ -161,3 +161,16 @@ Official references:
 ## Local verification of these deployment changes
 
 Both production builds passed, all 37 backend tests passed, and the dedicated Chrome proxy test passed. The browser test verified `/api/health`, separate Set-Cookie headers, registration/profile/logout, rejected untrusted Origin requests, and no-store headers through the real Next.js-to-NestJS proxy. Production Vercel configuration was checked for the HTTPS rewrite and output mode. JSON/YAML parsing passed. These checks do not claim that a hosted Vercel or Render deployment has been created or tested.
+
+### Address lookup for location pins
+
+Deploy the backend and frontend together for automatic address text. Authenticated `/locations/reverse` requests go through Render, which uses Nominatim reverse geocoding. No API key is needed. It is used only for user-selected points, never background scans or autocomplete. A MongoDB lease limits outbound requests across replicas to at most one per second (with a cooldown after completion); successful results are cached for 30 days and missing addresses for one hour. The UI debounces changes and retains coordinates when the provider is unavailable or busy. Old saved addresses are not rewritten merely by opening an edit form.
+
+Optional Render settings:
+
+```dotenv
+GEOCODING_ENABLED=true
+GEOCODING_BASE_URL=https://nominatim.openstreetmap.org/
+```
+
+Set `GEOCODING_ENABLED=false` to keep coordinate-only autofill, or change the base URL to a Nominatim-compatible service without a code update. The public service is suitable only for moderate usage under its [usage policy](https://operations.osmfoundation.org/policies/nominatim/): one request per second across the app, identifying User-Agent, attribution, no autocomplete/bulk requests, and no confidential data. Render identifies requests using `FRONTEND_URL`. Addresses are nearest-feature estimates and remain editable. Use a dedicated provider for higher traffic; do not bypass the shared limiter by giving replicas separate databases.

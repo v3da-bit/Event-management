@@ -5,6 +5,7 @@ import { LocateFixed, MapPin, Search } from "lucide-react";
 import type { LocationPin } from "@everafter/shared-types";
 import type { Map as LeafletMap, Marker, LatLng } from "leaflet";
 import { mapsUrl } from "@/lib/maps";
+import { api } from "@/lib/api";
 import { Button } from "./ui/button";
 
 export function LocationLink({
@@ -54,6 +55,91 @@ export function LocationPicker({
   const updateMarker = useRef<((pin?: LocationPin | null) => void) | null>(
     null,
   );
+
+  const [findingAddress, setFindingAddress] = useState(false);
+  const [addressNotice, setAddressNotice] = useState("");
+  const selectionVersion = useRef(0);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
+  );
+  const lookupAbort = useRef<AbortController | null>(null);
+  const generatedText = useRef<string | null>(null);
+
+  function cancelLookup() {
+    selectionVersion.current++;
+    clearTimeout(lookupTimer.current);
+    lookupAbort.current?.abort();
+    setFindingAddress(false);
+    setAddressNotice("");
+  }
+
+  useEffect(
+    () => () => {
+      selectionVersion.current++;
+      clearTimeout(lookupTimer.current);
+      lookupAbort.current?.abort();
+    },
+    [],
+  );
+
+  function selectPin(value: LocationPin) {
+    cancelLookup();
+    const version = selectionVersion.current;
+    const fallback = `${value.lat.toFixed(6)}, ${value.lng.toFixed(6)}`;
+    generatedText.current = fallback;
+    latest.current.onChange(fallback, value);
+    setFindingAddress(true);
+    async function lookup(attempt = 0) {
+      if (version !== selectionVersion.current) return;
+      const controller = new AbortController();
+      lookupAbort.current = controller;
+      try {
+        const result = await api<{
+          address: string | null;
+          retryAfterMs?: number;
+        }>(
+          `/locations/reverse?${new URLSearchParams({ lat: String(value.lat), lng: String(value.lng) })}`,
+          { signal: controller.signal },
+        );
+        if (version !== selectionVersion.current) return;
+        if (result.retryAfterMs && attempt < 2) {
+          lookupTimer.current = setTimeout(
+            () => void lookup(attempt + 1),
+            Math.max(1100, Math.min(result.retryAfterMs, 5000)),
+          );
+          return;
+        }
+        if (
+          result.address &&
+          latest.current.location === fallback &&
+          latest.current.pin?.lat === value.lat &&
+          latest.current.pin?.lng === value.lng
+        ) {
+          generatedText.current = result.address;
+          latest.current.onChange(result.address, value);
+        } else if (!result.address) {
+          setAddressNotice(
+            "Address unavailable. Coordinates were filled in; you can enter a place name.",
+          );
+        }
+      } catch {
+        if (version !== selectionVersion.current) return;
+        setAddressNotice(
+          "Address unavailable. Coordinates were filled in; you can enter a place name.",
+        );
+      }
+      if (version === selectionVersion.current) setFindingAddress(false);
+    }
+    // Only resolve the final point after a click/drag or coordinate edit settles.
+    lookupTimer.current = setTimeout(() => void lookup(), 600);
+  }
+
+  function removePin() {
+    cancelLookup();
+    const text = latest.current.location;
+    latest.current.onChange(text === generatedText.current ? "" : text, null);
+    generatedText.current = null;
+  }
 
   useEffect(() => {
     setCoords({
@@ -107,7 +193,7 @@ export function LocationPicker({
         });
         const select = (point: LatLng) => {
           const wrapped = point.wrap();
-          latest.current.onChange(latest.current.location, {
+          selectPin({
             lat: Math.max(-90, Math.min(90, wrapped.lat)),
             lng: wrapped.lng,
           });
@@ -160,18 +246,19 @@ export function LocationPicker({
       setError("Your browser does not support location access.");
       return;
     }
+    cancelLookup();
+    const version = selectionVersion.current;
     setLocating(true);
     setError("");
     navigator.geolocation.getCurrentPosition(
       ({ coords }) => {
-        latest.current.onChange(latest.current.location, {
-          lat: coords.latitude,
-          lng: coords.longitude,
-        });
         setLocating(false);
+        if (version !== selectionVersion.current) return;
+        selectPin({ lat: coords.latitude, lng: coords.longitude });
       },
       () => {
         setLocating(false);
+        if (version !== selectionVersion.current) return;
         setError(
           "Could not access your location. Allow location access or select a pin manually.",
         );
@@ -181,9 +268,10 @@ export function LocationPicker({
   }
 
   function coordinate(field: "lat" | "lng", value: string) {
+    cancelLookup();
     const next = { ...coords, [field]: value };
     setCoords(next);
-    if (!next.lat && !next.lng) onChange(location, null);
+    if (!next.lat && !next.lng) removePin();
     else if (
       next.lat &&
       next.lng &&
@@ -192,7 +280,7 @@ export function LocationPicker({
       Math.abs(Number(next.lat)) <= 90 &&
       Math.abs(Number(next.lng)) <= 180
     )
-      onChange(location, { lat: Number(next.lat), lng: Number(next.lng) });
+      selectPin({ lat: Number(next.lat), lng: Number(next.lng) });
   }
 
   return (
@@ -204,9 +292,33 @@ export function LocationPicker({
         maxLength={300}
         value={location}
         onChange={(e) => {
+          cancelLookup();
+          generatedText.current = null;
           onChange(e.target.value, pin || null);
         }}
       />
+      {findingAddress && (
+        <p role="status" className="muted text-sm">
+          Finding address…
+        </p>
+      )}
+      {addressNotice && (
+        <p role="status" className="muted text-sm">
+          {addressNotice}
+        </p>
+      )}
+      {pin && (
+        <p className="muted text-sm">
+          Address data ©{" "}
+          <a
+            href="https://www.openstreetmap.org/copyright"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            OpenStreetMap contributors
+          </a>
+        </p>
+      )}
       <div className="location-tools">
         <Button
           type="button"
@@ -226,12 +338,7 @@ export function LocationPicker({
           <LocateFixed size={15} /> {locating ? "Locating…" : "Use my location"}
         </Button>
         {pin && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => onChange(location, null)}
-          >
+          <Button type="button" variant="ghost" size="sm" onClick={removePin}>
             Remove pin
           </Button>
         )}

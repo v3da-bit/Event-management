@@ -33,6 +33,12 @@ test("saves event and wishlist pins and shows only pending work in reminders", a
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256"><rect width="256" height="256" fill="#e8eddf"/></svg>',
     }),
   );
+  await page.route("**/api/locations/reverse?*", (route) => {
+    const params = new URL(route.request().url()).searchParams;
+    return route.fulfill({
+      json: { address: `Selected ${params.get("lat")}, ${params.get("lng")}` },
+    });
+  });
   await page.goto("/events/create");
   const title = "Reminder and map check";
   await page.getByLabel("Event title").fill(title);
@@ -89,13 +95,17 @@ test("saves event and wishlist pins and shows only pending work in reminders", a
   await page.getByRole("button", { name: "Hide map" }).click();
   await page.getByRole("button", { name: "Choose on map" }).click();
   await expect(map.locator(".leaflet-marker-icon")).toBeVisible();
+  const selectedAddress = `Selected ${pin.lat}, ${pin.lng}`;
+  await expect(page.getByLabel("Location (optional)")).toHaveValue(
+    selectedAddress,
+  );
   await page.getByRole("button", { name: "Create celebration" }).click();
   await expect(page).toHaveURL(/\/events\/[a-f\d]{24}$/);
   const id = page.url().split("/").pop();
 
   try {
     await expect(
-      page.getByRole("link", { name: "Ceremony venue · Open Google Maps" }),
+      page.getByRole("link", { name: `${selectedAddress} · Open Google Maps` }),
     ).toHaveAttribute(
       "href",
       `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${pin.lat},${pin.lng}`)}`,
@@ -109,10 +119,15 @@ test("saves event and wishlist pins and shows only pending work in reminders", a
     await dialog.getByLabel("Longitude").fill("72.59");
     await dialog.getByRole("button", { name: "Choose on map" }).click();
     await expect(dialog.locator(".leaflet-marker-icon")).toBeVisible();
+    await expect(dialog.getByLabel("Location (optional)")).toHaveValue(
+      "Selected 23.04, 72.59",
+    );
     await dialog.getByRole("button", { name: "Save detail" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(
-      page.getByRole("link", { name: "Florist · Open Google Maps" }),
+      page.getByRole("link", {
+        name: "Selected 23.04, 72.59 · Open Google Maps",
+      }),
     ).toHaveAttribute("href", /query=23\.04%2C72\.59$/);
     await page.getByRole("button", { name: "Edit Pick up flowers" }).click();
     await dialog.getByRole("button", { name: "Choose on map" }).click();
@@ -122,7 +137,9 @@ test("saves event and wishlist pins and shows only pending work in reminders", a
     await dialog.getByRole("button", { name: "Save detail" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(
-      page.getByRole("link", { name: "Florist · Open Google Maps" }),
+      page.getByRole("link", {
+        name: "Selected 23.04, 72.59 · Open Google Maps",
+      }),
     ).toHaveCount(0);
     await page.getByRole("link", { name: "Overview", exact: true }).click();
     const reminder = page
@@ -172,6 +189,9 @@ test("location controls remain usable on mobile when map tiles fail", async ({
   await page.route("https://tile.openstreetmap.org/**", (route) =>
     route.abort(),
   );
+  await page.route("**/api/locations/reverse?*", (route) =>
+    route.fulfill({ json: { address: null } }),
+  );
   await page.goto("/events/create");
   await page.getByLabel("Location (optional)").fill("Kadi & Ahmedabad");
   await page.getByRole("button", { name: "Choose on map" }).click();
@@ -196,11 +216,63 @@ test("location controls remain usable on mobile when map tiles fail", async ({
   await page.getByLabel("Longitude", { exact: true }).fill("0");
   await expect(page.getByText("Pin: 0.000000, 0.000000")).toBeVisible();
   await expect(page.getByLabel("Location (optional)")).toHaveValue(
-    "Kadi & Ahmedabad",
+    "0.000000, 0.000000",
   );
+  await expect(page.getByText(/Address unavailable/)).toBeVisible();
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("address autofill follows the latest pin and preserves manual edits", async ({
+  page,
+}) => {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      json: { _id: "address-check", fullName: "Address Check", team: "GROOM" },
+    }),
+  );
+  await page.route("**/api/events/reminders", (route) =>
+    route.fulfill({ json: { items: [], total: 0 } }),
+  );
+  const requests: import("@playwright/test").Route[] = [];
+  await page.route("**/api/locations/reverse?*", (route) => {
+    requests.push(route);
+  });
+  await page.goto("/events/create");
+  const location = page.getByLabel("Location (optional)");
+  await page.getByText("Enter coordinates").click();
+  await page.getByLabel("Latitude", { exact: true }).fill("10");
+  await page.getByLabel("Longitude", { exact: true }).fill("20");
+  await expect(location).toHaveValue("10.000000, 20.000000");
+  await expect.poll(() => requests.length).toBe(1);
+  await page.getByLabel("Longitude", { exact: true }).fill("21");
+  await expect(location).toHaveValue("10.000000, 21.000000");
+  await expect.poll(() => requests.length).toBe(2);
+  await requests[1].fulfill({ json: { address: "Second venue" } });
+  await expect(location).toHaveValue("Second venue");
+  await requests[0].fulfill({ json: { address: "Old venue" } }).catch(() => {});
+  await expect(location).toHaveValue("Second venue");
+
+  await page.getByLabel("Longitude", { exact: true }).fill("22");
+  await expect.poll(() => requests.length).toBe(3);
+  await location.fill("My custom venue name");
+  await requests[2]
+    .fulfill({ json: { address: "Provider venue name" } })
+    .catch(() => {});
+  await expect(location).toHaveValue("My custom venue name");
+  await page.getByRole("button", { name: "Remove pin" }).click();
+  await expect(location).toHaveValue("My custom venue name");
+
+  await page.getByLabel("Latitude", { exact: true }).fill("11");
+  await page.getByLabel("Longitude", { exact: true }).fill("23");
+  await expect.poll(() => requests.length).toBe(4);
+  await page.getByRole("button", { name: "Remove pin" }).click();
+  await requests[3]
+    .fulfill({ json: { address: "Removed venue" } })
+    .catch(() => {});
+  await expect(location).toHaveValue("");
+  await expect(page.getByText(/^Pin:/)).toHaveCount(0);
 });

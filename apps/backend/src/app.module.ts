@@ -1,3 +1,4 @@
+import { LocationsModule } from "./locations/locations.module";
 import { HealthController } from "./common/health.controller";
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
@@ -29,6 +30,7 @@ import { UploadsModule } from "./uploads/uploads.module";
     WishlistModule,
     GoogleCalendarModule,
     UploadsModule,
+    LocationsModule,
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
   ],
   controllers: [HealthController],

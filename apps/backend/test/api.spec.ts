@@ -89,6 +89,117 @@ describe("Wedding API with real MongoDB", () => {
     expect(b.body.team).toBe("BRIDE");
     await call("patch", "/users/me", groom).send({ team: "BRIDE" }).expect(400);
   });
+  it("requires authentication and validates reverse-geocoding coordinates", async () => {
+    await call("get", "/locations/reverse?lat=23&lng=72").expect(401);
+    for (const query of [
+      "lat=91&lng=72",
+      "lat=23&lng=181",
+      "lat=&lng=72",
+      "lat=abc&lng=72",
+      "lat=23",
+      "lat=23&lng=72&url=https://example.com",
+    ]) {
+      await call("get", `/locations/reverse?${query}`, groom).expect(400);
+    }
+  });
+  it("caches addresses and coordinates reverse lookups across concurrent users", async () => {
+    const cache = app.get<Model<any>>(getModelToken("GeocodeCache"));
+    const gate = app.get<Model<any>>(getModelToken("GeocodeGate"));
+    await Promise.all([cache.init(), gate.init()]);
+    await gate.deleteMany({});
+    let release!: (value: any) => void;
+    let started!: () => void;
+    const requested = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    const provider = jest
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(() => {
+        started();
+        return new Promise((resolve) => {
+          release = resolve;
+        });
+      });
+    try {
+      const first = call(
+        "get",
+        "/locations/reverse?lat=23.03&lng=72.58",
+        groom,
+      ).then((response) => response);
+      await requested;
+      const second = await call(
+        "get",
+        "/locations/reverse?lat=23.04&lng=72.59",
+        bride,
+      ).expect(200);
+      expect(second.body).toEqual({ address: null, retryAfterMs: 1500 });
+      release({
+        ok: true,
+        json: async () => ({ display_name: "Kadi, Gujarat, India" }),
+      });
+      expect((await first).body).toEqual({ address: "Kadi, Gujarat, India" });
+      const again = await call(
+        "get",
+        "/locations/reverse?lat=23.03&lng=72.58",
+        bride,
+      ).expect(200);
+      expect(again.body.address).toBe("Kadi, Gujarat, India");
+      expect(provider).toHaveBeenCalledTimes(1);
+      expect(String(provider.mock.calls[0][0])).toContain("format=jsonv2");
+      expect(provider.mock.calls[0][1]?.headers).toEqual(
+        expect.objectContaining({ "User-Agent": `EverAfter/1.0 (${origin})` }),
+      );
+      const cooldown = await call(
+        "get",
+        "/locations/reverse?lat=23.05&lng=72.60",
+        groom,
+      ).expect(200);
+      expect(cooldown.body.retryAfterMs).toBe(1500);
+    } finally {
+      release?.({ ok: false });
+      provider.mockRestore();
+    }
+  });
+  it("falls back on reverse-geocoder outages, bounds address length and caches missing results", async () => {
+    const gate = app.get<Model<any>>(getModelToken("GeocodeGate"));
+    const provider = jest.spyOn(globalThis, "fetch");
+    try {
+      await gate.deleteMany({});
+      provider.mockRejectedValueOnce(new Error("provider timeout"));
+      const failed = await call(
+        "get",
+        "/locations/reverse?lat=1&lng=2",
+        groom,
+      ).expect(200);
+      expect(failed.body).toEqual({ address: null });
+      await gate.deleteMany({});
+      provider.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ display_name: "A".repeat(400) }),
+      } as Response);
+      const long = await call(
+        "get",
+        "/locations/reverse?lat=3&lng=4",
+        groom,
+      ).expect(200);
+      expect(long.body.address).toHaveLength(300);
+      await gate.deleteMany({});
+      provider.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ error: "Unable to geocode" }),
+      } as Response);
+      await call("get", "/locations/reverse?lat=0&lng=0", groom).expect(200);
+      const missing = await call(
+        "get",
+        "/locations/reverse?lat=0&lng=0",
+        groom,
+      ).expect(200);
+      expect(missing.body).toEqual({ address: null });
+      expect(provider).toHaveBeenCalledTimes(3);
+    } finally {
+      provider.mockRestore();
+    }
+  });
   it("prevents duplicates, rejects bad credentials and authenticates login", async () => {
     await call("post", "/auth/register")
       .send({
